@@ -1,0 +1,23 @@
+# API Keys — NEVER commit real keys
+.env
+
+# Generated data (can rebuild with build_index.py)
+chroma_db/
+
+# Large binaries
+data/*.pdf
+data/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyCharm
+.idea/
+
+# Evaluation output
+eval_results.json
+
+# Conda env
+.env/
