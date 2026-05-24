@@ -2,7 +2,7 @@
 
 基于 FIA 官方 2026 F1 技术规则（207页）构建的 RAG 问答系统。
 
-**技术栈**: 阿里百炼 text-embedding-v3 · ChromaDB · BM25 · DeepSeek · Gradio · RAGAS
+**技术栈**: 阿里百炼 text-embedding-v3 · ChromaDB · BM25 · DeepSeek · Gradio
 
 ## 架构
 
@@ -47,7 +47,7 @@ python build_index.py
 # Step 3: 启动 Web 界面
 python app.py
 
-# 可选: 运行 RAGAS 评估
+# 可选: 运行评估
 python eval.py
 ```
 
@@ -60,7 +60,7 @@ f1_rag/
 ├── build_index.py     # 构建向量索引 + BM25 索引
 ├── rag_pipeline.py    # 混合检索 + RAG 生成核心
 ├── app.py             # Gradio Web 界面
-├── eval.py            # RAGAS 评估
+├── eval.py            # 评估脚本（DeepSeek 打分）
 ├── data/              # 原始 PDF + 解析后数据
 ├── chroma_db/         # 向量库持久化
 └── requirements.txt
@@ -68,14 +68,15 @@ f1_rag/
 
 ## 评估结果
 
-使用 RAGAS 在 11 道测试题上评估：
+使用 DeepSeek 作为评估模型，在 11 道测试题上打分（0-10）：
 
 | 指标 | 分数 | 说明 |
 |------|------|------|
-| Faithfulness | - | 回答是否忠于上下文 |
-| Answer Relevancy | - | 回答是否切题 |
-| Context Precision | - | 检索到的文档是否相关 |
-| Context Recall | - | 相关文档是否被检索到 |
+| Faithfulness | 7.7 /10 | 回答是否忠于检索到的上下文（不瞎编） |
+| Answer Relevancy | 8.2 /10 | 回答是否直接切题 |
+| Context Precision | 3.2 /10 | 检索到的文档块与问题的相关性 |
+
+Context Precision 偏低的主要原因是规则文档的交叉引用密集——一个问题涉及的术语可能分散在多个 Article 中，当前检索策略在精确定位上还有优化空间（如引入 reranker 或查询扩展）。
 
 ## License
 
