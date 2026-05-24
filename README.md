@@ -2,21 +2,24 @@
 
 基于 FIA 官方 2026 F1 技术规则（207页）构建的 RAG 问答系统。
 
-**技术栈**: 阿里百炼 text-embedding-v3 · ChromaDB · BM25 · DeepSeek · Gradio
+**技术栈**: 阿里百炼 text-embedding-v3 · ChromaDB · BM25 · DeepSeek · DashScope Reranker · Gradio
 
 ## 架构
 
 ```
-用户问题 → 混合检索（向量 + BM25 → RRF融合）→ DeepSeek生成 → 回答+来源引用
+用户问题 → 查询扩展（术语对齐）→ 混合检索（向量 + BM25 → RRF融合）→ Reranker精排 → DeepSeek生成 → 回答+来源引用
 ```
 
-### 为什么混合检索？
+### 关键设计选择
 
-F1 技术规则中包含大量精确术语（如 RV-FLOOR-BODY, MGU-K）和编号（如 5.3.2）。纯向量检索对这类精确关键词匹配不够敏感，BM25 可以弥补这一点。RRF 融合让两者互补。
+**混合检索 + Reranker 精排**
+向量检索（语义匹配）和 BM25（关键词匹配）各有盲区。先用两者宽召回 20 个候选，再用 DashScope gte-rerank 做交叉编码精排到 5 个。规则文档里既有精确术语（"MGU-K"、"5.3.2"）也有同义表述（"weight" vs "mass"），两级检索能互补。
 
-### 为什么结构化分块？
+**查询扩展（Query Expansion）**
+用户提问的用词往往和文档术语不一致（"最低重量" vs "Minimum Mass"）。检索前用 LLM 将问题改写成富含文档术语的检索查询，提高召回质量。
 
-法规文档有严格的层次结构（Article → Section → Subsection）。按照这些边界切分能保持语义完整性，避免把 "3.5.1 的定义" 和 "3.5.2 的限制" 混在一起。
+**结构化分块 + 上下文锚点**
+法规文档有严格的层次结构（Article → Section → Subsection）。短条款独立成块但前缀带上父级标题做上下文，避免 embedding 失去方向。
 
 ## 快速开始
 
@@ -72,11 +75,11 @@ f1_rag/
 
 | 指标 | 分数 | 说明 |
 |------|------|------|
-| Faithfulness | 7.7 /10 | 回答是否忠于检索到的上下文（不瞎编） |
-| Answer Relevancy | 8.2 /10 | 回答是否直接切题 |
-| Context Precision | 3.2 /10 | 检索到的文档块与问题的相关性 |
+| Faithfulness | 8.2 /10 | 回答是否忠于检索到的上下文（不瞎编） |
+| Answer Relevancy | 9.5 /10 | 回答是否直接切题 |
+| Context Precision | 3.5 /10 | 检索到的文档块与问题的相关性 |
 
-Context Precision 偏低的主要原因是规则文档的交叉引用密集——一个问题涉及的术语可能分散在多个 Article 中，当前检索策略在精确定位上还有优化空间（如引入 reranker 或查询扩展）。
+Context Precision 是当前主要优化方向。分析发现根因在分块策略——短条款被过度合并导致 embedding 稀释。后续可通过调整合并阈值或引入更细粒度的分块来提升。Faithfulness 和 Answer Relevancy 通过严格 Prompt + 查询扩展 + Reranker 已达到实用水平。
 
 ## License
 
