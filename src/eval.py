@@ -5,8 +5,8 @@
 import json
 from pathlib import Path
 from openai import OpenAI
-from rag_pipeline import get_pipeline
-from config import DEEPSEEK_API_KEY, LLM_MODEL, LLM_BASE_URL
+from .rag_pipeline import get_pipeline
+from .config import DEEPSEEK_API_KEY, LLM_MODEL, LLM_BASE_URL
 
 client = OpenAI(base_url=LLM_BASE_URL, api_key=DEEPSEEK_API_KEY)
 

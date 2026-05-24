@@ -3,13 +3,16 @@ FastAPI 后端：REST API + SSE 流式输出
 http://127.0.0.1:8000     → 聊天界面
 http://127.0.0.1:8000/docs → Swagger 文档
 """
+import sys
 import json
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from rag_pipeline import get_pipeline, SYSTEM_PROMPT
+from src.rag_pipeline import get_pipeline, SYSTEM_PROMPT
 
 app = FastAPI(title="F1 2026 Tech Regs RAG", version="2.0")
 
@@ -82,7 +85,7 @@ async def chat(req: QueryRequest):
 @app.get("/")
 async def index():
     """返回静态聊天页面"""
-    html_path = Path(__file__).parent / "static" / "index.html"
+    html_path = Path(__file__).parent.parent / "static" / "index.html"
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 

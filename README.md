@@ -42,35 +42,39 @@ cp .env.example .env
 
 ```bash
 # Step 1: 解析 PDF + 分块
-python parse_pdf.py
+python -m src.parse_pdf
 
 # Step 2: 构建索引（embedding 只跑一次，结果持久化到 chroma_db/）
-python build_index.py
+python -m src.build_index
 
 # Step 3: 启动 Web 界面
-python app.py          # v1 - Gradio (端口 7860)
+python app/app_gradio.py   # v1 - Gradio (端口 7860)
 # 或
-python app_fastapi.py  # v2 - FastAPI + 流式输出 (端口 8000)
+python app/app_fastapi.py  # v2 - FastAPI + 流式输出 (端口 8000)
 
 # 可选: 运行评估
-python eval.py
+python -m src.eval
 ```
 
 ## 项目结构
 
 ```
 f1_rag/
-├── config.py          # 全局配置
-├── parse_pdf.py       # PDF 解析 + 清洗 + 结构化分块
-├── build_index.py     # 构建向量索引 + BM25 索引
-├── rag_pipeline.py    # 混合检索 + RAG 生成核心
-├── app.py             # v1: Gradio 界面（快速原型）
-├── app_fastapi.py     # v2: FastAPI + SSE 流式输出 + Swagger
-├── static/index.html  # FastAPI 聊天前端
-├── eval.py            # 评估脚本（DeepSeek 打分）
-├── data/              # 原始 PDF + 解析后数据
-├── chroma_db/         # 向量库持久化
-└── requirements.txt
+├── src/
+│   ├── config.py          # 全局配置
+│   ├── parse_pdf.py       # PDF 解析 + 清洗 + 结构化分块
+│   ├── build_index.py     # 构建向量索引 + BM25 索引
+│   ├── rag_pipeline.py    # 混合检索 + RAG 生成核心
+│   └── eval.py            # 评估脚本（DeepSeek 打分）
+├── app/
+│   ├── app_gradio.py      # v1: Gradio 界面（快速原型）
+│   └── app_fastapi.py     # v2: FastAPI + SSE 流式 + Swagger
+├── static/
+│   └── index.html         # FastAPI 聊天前端
+├── data/                  # 原始 PDF + 解析后数据
+├── chroma_db/             # 向量库持久化
+├── requirements.txt
+└── README.md
 ```
 
 ## 评估结果

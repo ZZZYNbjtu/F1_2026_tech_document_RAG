@@ -5,7 +5,7 @@ import re
 import json
 import pdfplumber
 from pathlib import Path
-from config import PDF_PATH, PARSED_TEXT_PATH, CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS
+from .config import PDF_PATH, PARSED_TEXT_PATH, CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS
 
 # ── 页脚模式（每页重复，需要移除）────────────────────────────
 FOOTER_PATTERN = re.compile(

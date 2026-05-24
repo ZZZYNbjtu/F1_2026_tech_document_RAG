@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---- Paths ----
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).parent.parent  # src/ 的父目录
 DATA_DIR = PROJECT_ROOT / "data"
 CHROMA_DIR = PROJECT_ROOT / "chroma_db"
 PDF_PATH = DATA_DIR / "fia_2026_formula_1_technical_regulations_issue_8_-_2024-06-24.pdf"

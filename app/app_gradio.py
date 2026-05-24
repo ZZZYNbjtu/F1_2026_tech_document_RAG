@@ -1,8 +1,12 @@
 """
 Gradio Web 界面：F1 2026 技术规则 RAG 问答（支持对话记忆）
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import gradio as gr
-from rag_pipeline import get_pipeline
+from src.rag_pipeline import get_pipeline
 
 
 def answer_question(question: str, history: list[list[str]]) -> str:

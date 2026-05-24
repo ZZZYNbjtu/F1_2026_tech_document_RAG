@@ -10,7 +10,7 @@ import chromadb
 from chromadb.config import Settings as ChromaSettings
 from rank_bm25 import BM25Okapi
 
-from config import (
+from .config import (
     PARSED_TEXT_PATH, CHROMA_DIR,
     DASHSCOPE_API_KEY, DEEPSEEK_API_KEY,
     EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_BATCH_SIZE,

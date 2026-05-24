@@ -11,7 +11,7 @@ from rank_bm25 import BM25Okapi
 import dashscope
 from dashscope import TextEmbedding
 
-from config import (
+from .config import (
     PARSED_TEXT_PATH, CHROMA_DIR,
     DASHSCOPE_API_KEY, EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_BATCH_SIZE,
 )
