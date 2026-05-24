@@ -10,11 +10,20 @@ def answer_question(question: str, history: list[list[str]]) -> str:
     if not question.strip():
         return "Please enter a question."
 
-    # 将 Gradio 格式 [[user, bot], ...] 转为 Pipeline 格式
+    # 兼容 Gradio 不同版本的 history 格式
     formatted_history = []
-    for user_msg, bot_msg in history:
-        formatted_history.append(f"User: {user_msg}")
-        formatted_history.append(f"Assistant: {bot_msg}")
+    for item in history:
+        if isinstance(item, dict):
+            # Gradio 5.x: {"role": "user"/"assistant", "content": "..."}
+            role = item.get("role", "")
+            content = item.get("content", "")
+            formatted_history.append(f"{'User' if role == 'user' else 'Assistant'}: {content}")
+        elif isinstance(item, (list, tuple)):
+            if len(item) >= 2:
+                formatted_history.append(f"User: {item[0]}")
+                formatted_history.append(f"Assistant: {item[1]}")
+        else:
+            formatted_history.append(str(item))
 
     pipeline = get_pipeline()
     result = pipeline.query(question, history=formatted_history)
