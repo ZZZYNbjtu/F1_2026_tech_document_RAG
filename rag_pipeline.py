@@ -15,16 +15,18 @@ from config import (
     DASHSCOPE_API_KEY, DEEPSEEK_API_KEY,
     EMBEDDING_MODEL, EMBEDDING_DIM, EMBEDDING_BATCH_SIZE,
     LLM_MODEL, LLM_BASE_URL,
-    VECTOR_TOP_K, BM25_TOP_K, FINAL_TOP_K,
+    VECTOR_TOP_K, BM25_TOP_K, RERANK_CANDIDATE_K, FINAL_TOP_K,
 )
 
 # ── Prompt 模板 ─────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are an expert on Formula 1 technical regulations, specializing in the 2026 FIA F1 Technical Regulations.
-Answer the user's question based ONLY on the provided context passages.
-If the context does not contain enough information to answer the question, say: "The 2026 regulations do not appear to cover this specific question."
-When answering, cite the relevant article/section numbers from the context (e.g., "According to Article 5.3.2...").
-Answer in the same language as the user's question (e.g. if the user asks in Chinese, answer in Chinese).
-Keep answers concise but technically precise."""
+
+CRITICAL RULES:
+1. Answer based ONLY on the provided context passages. Do NOT use your own knowledge or training data.
+2. Before citing any article/section number, verify it EXPLICITLY appears in the context above. If the correct article number is not in the context, say "according to the provided context" without fabricating numbers.
+3. If the context does not contain enough information, say: "The provided context does not specify [what the user asked about]."
+4. Answer in the same language as the user's question.
+5. Keep answers concise but technically precise."""
 
 QUERY_REWRITE_PROMPT = """Given the conversation history, rewrite the user's latest question into a standalone question that can be understood without prior context.
 If the user says things like "answer again in Chinese" or "explain differently", preserve the original question's meaning but adjust the language/format request.
@@ -37,6 +39,15 @@ Conversation history:
 Latest question: {question}
 
 Rewritten question:"""
+
+QUERY_EXPANSION_PROMPT = """Convert the user's question into a keyword-rich search query using F1 2026 Technical Regulations terminology.
+Replace everyday words with document terms (e.g. "weight" → "mass", "engine size" → "engine cubic capacity", "electric motor" → "MGU-K").
+Add likely article numbers (e.g. "minimum mass Article 4.2").
+Output ONLY the keyword query, no explanation. Maximum 30 words.
+
+Question: {question}
+
+Search query:"""
 
 
 class HybridRetriever:
@@ -68,7 +79,8 @@ class HybridRetriever:
         return None, []
 
     def _tokenize(self, text: str) -> list[str]:
-        return re.findall(r'[a-zA-Z0-9]+', text.lower())
+        # 保留连字符术语完整性：MGU-K, RV-FLOOR-BODY, PU-CE 等
+        return re.findall(r'[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*', text.lower())
 
     def _embed_query(self, query: str) -> list[float]:
         """调用 DashScope 向量化查询"""
@@ -120,25 +132,55 @@ class HybridRetriever:
         return [(int(i), float(scores[i] / max_score)) for i in top_indices if scores[i] > 0]
 
     def retrieve(self, query: str) -> list[dict]:
-        """混合检索主方法"""
-        # 向量检索
+        """混合检索 + Reranker 精排"""
+        # 第一轮：宽召回
         query_emb = self._embed_query(query)
         vector_results = self._vector_search(query_emb, VECTOR_TOP_K)
-
-        # BM25 检索
         bm25_results = self._bm25_search(query, BM25_TOP_K)
 
-        # RRF 融合
+        # RRF 融合 → 候选池（20个）
         fused = self._rrf_fuse(vector_results, bm25_results, k=60)
-
-        # 返回 top_k 个 chunk
-        top_chunks = []
-        for idx, score in fused[:FINAL_TOP_K]:
+        candidates = []
+        for idx, score in fused[:RERANK_CANDIDATE_K]:
             chunk = self.chunks[idx].copy()
             chunk["score"] = round(score, 4)
-            top_chunks.append(chunk)
+            candidates.append(chunk)
 
-        return top_chunks
+        # 第二轮：Reranker 精排 → top 5
+        if len(candidates) > FINAL_TOP_K:
+            candidates = self._rerank(query, candidates)
+
+        return candidates
+
+    def _rerank(self, query: str, candidates: list[dict]) -> list[dict]:
+        """用 DashScope gte-rerank 对候选池精排"""
+        import dashscope
+        from dashscope import TextReRank
+        dashscope.api_key = DASHSCOPE_API_KEY
+
+        documents = [c["content"] for c in candidates]
+
+        resp = TextReRank.call(
+            model=TextReRank.Models.gte_rerank,
+            query=query,
+            documents=documents,
+            top_n=FINAL_TOP_K,
+            return_documents=False,
+        )
+
+        if resp.status_code == 200:
+            results = resp.output["results"]
+            reranked = []
+            for item in results:
+                idx = item["index"]
+                ch = candidates[idx].copy()
+                ch["score"] = round(item["relevance_score"], 4)
+                ch["rerank_score"] = ch["score"]
+                reranked.append(ch)
+            return reranked
+        else:
+            print(f"  Reranker warning: {resp.message}, falling back to RRF top")
+            return candidates[:FINAL_TOP_K]
 
     def _rrf_fuse(self, vec_results: list[tuple[int, float]],
                   bm25_results: list[tuple[int, float]], k: int = 60) -> list[tuple[int, float]]:
@@ -190,6 +232,17 @@ class RAGPipeline:
         rewritten = rewrite_resp.choices[0].message.content.strip()
         return rewritten
 
+    def _expand_query(self, question: str) -> str:
+        """将用户问题扩展为富含文档术语的检索查询"""
+        prompt = QUERY_EXPANSION_PROMPT.replace("{question}", question)
+        resp = self.llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        return resp.choices[0].message.content.strip()
+
     def query(self, question: str, history: list[str] | None = None) -> dict:
         """执行 RAG 查询（支持对话记忆）"""
         # 第一步：改写问题
@@ -198,8 +251,11 @@ class RAGPipeline:
         else:
             standalone = question
 
-        # 第二步：用改写后的问题做检索
-        chunks = self.retriever.retrieve(standalone)
+        # 第二步：查询扩展，生成富含文档术语的检索查询
+        expanded = self._expand_query(standalone)
+
+        # 第三步：用扩展查询做检索
+        chunks = self.retriever.retrieve(expanded)
         context = self._build_context(chunks)
 
         # 第三步：构建消息（包含对话历史）
@@ -234,6 +290,7 @@ class RAGPipeline:
         return {
             "question": question,
             "standalone_query": standalone if standalone != question else None,
+            "expanded_query": expanded,
             "answer": answer,
             "sources": sources,
         }

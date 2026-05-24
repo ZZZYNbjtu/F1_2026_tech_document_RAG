@@ -31,9 +31,11 @@ def answer_question(question: str, history: list[list[str]]) -> str:
     # ── 拼接输出 ─────────────────────────────────────────
     output = ""
 
-    # 如果问题被改写，先展示改写结果
+    # 展示改写和扩展后的检索查询
     if result.get("standalone_query"):
-        output += f"> *Rephrased for retrieval: {result['standalone_query']}*\n\n"
+        output += f"> *Rephrased: {result['standalone_query']}*\n"
+    if result.get("expanded_query"):
+        output += f"> *Search query: {result['expanded_query']}*\n\n"
 
     # LLM 回答
     output += result["answer"]

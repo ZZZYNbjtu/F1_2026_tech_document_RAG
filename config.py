@@ -25,9 +25,10 @@ LLM_MODEL = "deepseek-chat"
 LLM_BASE_URL = "https://api.deepseek.com"
 
 # ---- Retrieval ----
-VECTOR_TOP_K = 10
-BM25_TOP_K = 10
-FINAL_TOP_K = 5
+VECTOR_TOP_K = 20
+BM25_TOP_K = 20
+RERANK_CANDIDATE_K = 20   # RRF 融合后取多少个候选送给 Reranker
+FINAL_TOP_K = 5           # Reranker 精排后保留 top N
 
 # ---- Chunking ----
 CHUNK_MAX_CHARS = 1500
