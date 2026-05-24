@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 2026 Tech Regs RAG</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; }
+  #chat-panel { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; }
+  #header { padding: 16px 20px; background: #16213e; border-bottom: 1px solid #0f3460; }
+  #header h1 { font-size: 18px; color: #e94560; }
+  #header p { font-size: 12px; color: #888; margin-top: 4px; }
+  #messages { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .msg { margin-bottom: 16px; max-width: 85%; }
+  .msg.user { margin-left: auto; }
+  .msg .role { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+  .msg.user .role { color: #e94560; text-align: right; }
+  .msg.assistant .role { color: #4fc3f7; }
+  .msg .body { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+  .msg.user .body { background: #e94560; color: #fff; }
+  .msg.assistant .body { background: #16213e; border: 1px solid #0f3460; }
+  .msg .body p { margin-bottom: 8px; }
+  .msg .body p:last-child { margin-bottom: 0; }
+  .sources { margin-top: 8px; padding: 8px 12px; background: #0f3460; border-radius: 6px; font-size: 12px; }
+  .sources summary { cursor: pointer; color: #4fc3f7; }
+  .sources .src { margin-top: 6px; padding: 6px 8px; background: #1a1a2e; border-radius: 4px; font-size: 11px; color: #aaa; max-height: 120px; overflow-y: auto; }
+  #input-area { padding: 12px 20px; background: #16213e; border-top: 1px solid #0f3460; display: flex; gap: 8px; }
+  #input-area input { flex: 1; padding: 10px 14px; border: 1px solid #0f3460; border-radius: 6px; background: #1a1a2e; color: #e0e0e0; font-size: 14px; outline: none; }
+  #input-area input:focus { border-color: #e94560; }
+  #input-area button { padding: 10px 20px; background: #e94560; border: none; border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer; }
+  #input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .loading::after { content: "▊"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="chat-panel">
+  <div id="header">
+    <h1>F1 2026 Technical Regulations Q&A</h1>
+    <p>Ask questions about FIA 2026 F1 technical rules — answers with source verification</p>
+  </div>
+  <div id="messages">
+    <div class="msg assistant">
+      <div class="role">Assistant</div>
+      <div class="body">Ask me anything about the 2026 F1 Technical Regulations. Example: "What is the minimum weight of a 2026 F1 car?" or "How many cylinders must the engine have?"</div>
+    </div>
+  </div>
+  <div id="input-area">
+    <input id="question-input" type="text" placeholder="Ask a question about F1 2026 regulations..." autofocus>
+    <button id="send-btn" onclick="ask()">Send</button>
+  </div>
+</div>
+
+<script>
+const input = document.getElementById('question-input');
+const sendBtn = document.getElementById('send-btn');
+const messages = document.getElementById('messages');
+
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
+
+function addMessage(role, text, sources) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `<div class="role">${role === 'user' ? 'You' : 'Assistant'}</div>
+    <div class="body">${text.replace(/\n/g, '<br>')}</div>`;
+  if (sources) {
+    let srcHtml = '<details class="sources"><summary>Sources</summary>';
+    sources.forEach((s, i) => {
+      srcHtml += `<div class="src"><b>[${i+1}] Article ${s.article}, Section ${s.section}</b> (score: ${s.score?.toFixed(3) || '?'})<br>${s.content ? s.content.substring(0, 500) : ''}</div>`;
+    });
+    srcHtml += '</details>';
+    div.querySelector('.body').insertAdjacentHTML('afterend', srcHtml);
+  }
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+async function ask() {
+  const q = input.value.trim();
+  if (!q) return;
+  addMessage('user', q);
+  input.value = '';
+  sendBtn.disabled = true;
+
+  const assistantDiv = document.createElement('div');
+  assistantDiv.className = 'msg assistant';
+  assistantDiv.innerHTML = '<div class="role">Assistant</div><div class="body loading"></div>';
+  messages.appendChild(assistantDiv);
+  const body = assistantDiv.querySelector('.body');
+
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q }),
+    });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let sources = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.sources) {
+            sources = parsed.sources;
+          } else if (parsed.content) {
+            fullText += parsed.content;
+            body.innerHTML = fullText.replace(/\n/g, '<br>');
+            body.classList.remove('loading');
+          }
+        } catch {}
+      }
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    if (fullText && sources) {
+      body.innerHTML = fullText.replace(/\n/g, '<br>');
+      let srcHtml = '<details class="sources"><summary>Sources</summary>';
+      sources.forEach((s, i) => {
+        srcHtml += `<div class="src"><b>[${i+1}] Article ${s.article}, Section ${s.section}</b> (score: ${s.score?.toFixed(3) || '?'})</div>`;
+      });
+      srcHtml += '</details>';
+      body.insertAdjacentHTML('afterend', srcHtml);
+    }
+  } catch (e) {
+    body.innerHTML = 'Error: ' + e.message;
+  }
+  body.classList.remove('loading');
+  sendBtn.disabled = false;
+  input.focus();
+}
+</script>
+</body>
+</html>

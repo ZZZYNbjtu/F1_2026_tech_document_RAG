@@ -48,7 +48,9 @@ python parse_pdf.py
 python build_index.py
 
 # Step 3: 启动 Web 界面
-python app.py
+python app.py          # v1 - Gradio (端口 7860)
+# 或
+python app_fastapi.py  # v2 - FastAPI + 流式输出 (端口 8000)
 
 # 可选: 运行评估
 python eval.py
@@ -62,7 +64,9 @@ f1_rag/
 ├── parse_pdf.py       # PDF 解析 + 清洗 + 结构化分块
 ├── build_index.py     # 构建向量索引 + BM25 索引
 ├── rag_pipeline.py    # 混合检索 + RAG 生成核心
-├── app.py             # Gradio Web 界面
+├── app.py             # v1: Gradio 界面（快速原型）
+├── app_fastapi.py     # v2: FastAPI + SSE 流式输出 + Swagger
+├── static/index.html  # FastAPI 聊天前端
 ├── eval.py            # 评估脚本（DeepSeek 打分）
 ├── data/              # 原始 PDF + 解析后数据
 ├── chroma_db/         # 向量库持久化
