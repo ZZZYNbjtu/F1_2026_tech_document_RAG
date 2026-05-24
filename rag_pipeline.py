@@ -181,9 +181,9 @@ class RAGPipeline:
 
         rewrite_resp = self.llm_client.chat.completions.create(
             model=LLM_MODEL,
-            messages=[{"role": "user", "content": QUERY_REWRITE_PROMPT.format(
-                history=history_str, question=question
-            )}],
+            messages=[{"role": "user", "content": QUERY_REWRITE_PROMPT.replace(
+                "{history}", history_str
+            ).replace("{question}", question)}],
             temperature=0.0,
             max_tokens=200,
         )
